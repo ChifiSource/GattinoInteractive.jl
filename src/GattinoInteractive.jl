@@ -3,7 +3,7 @@ using Gattino
 using Gattino.Toolips
 using ToolipsSession
 import ToolipsSession: bind!, funccl, push!
-import Gattino: AbstractContext, randstring
+import Gattino: AbstractContext, randstring, set!, points!
 
 mutable struct PlotModifier{CT <: AbstractContext} <: ToolipsSession.AbstractClientModifier
     con::CT
@@ -28,7 +28,7 @@ mutable struct Controls <: AbstractContext
         margin::Pair{Int64, Int64} = 0 => 0, padding::Int64 = 0) = begin
         window::Component{:div} = div(randstring())
         style!(window, "width" => "$width", "height" => "$height", "margin-left" => "$(margin[1])", 
-        "margin-right" => "$(margin[2])", "padding" => "$(padding)px")
+        "margin-right" => "$(margin[2])", "padding" => "$(padding)px", "vertical-align" => "top")
         window[:width], window[:height] = width, height
         Controls(window, margin)::Controls
     end
@@ -89,6 +89,23 @@ function value_is!(f::Function, gm::PlotModifier, comp::Component{<:Any}, a::Any
     f(newcl)
     push!(gm.changes, "if (String(document.getElementById('$(comp.name)').value) == $a){$(join(newcl.changes))}")
 end
+
+function set!(gm::PlotModifier{<:Any}, layer::String, propkey::Pair{String, <:AbstractVector})
+    [gm[child.name] = propkey[1] => propkey[2][e] for (e, child) in enumerate(gm.con.window[:children][layer][:children])]
+    nothing
+end
+
+function points!(gm::PlotModifier, layer::String, x::Vector{<:Number}, y::Vector{<:Number}; xmax::Number = maximum(x), ymax::Number = maximum(y))
+    percvec_x = map(n::Number -> n / xmax, x)
+    percvec_y = map(n::Number -> n / ymax, y)
+    con::AbstractContext = gm.con
+    points = [begin
+        pointx * con.dim[1] + con.margin[1] => con.dim[2] - (con.dim[2] * pointy) + con.margin[2]
+        end for (pointx, pointy) in zip(percvec_x, percvec_y)]
+    set!(gm, layer, "cx" => [p[1] for p in points])
+    set!(gm, layer, "cy" => [p[1] for p in points])
+end
+
 
 export bind!
 export PlotModifier, Controls, controls, options, selection_box, input
